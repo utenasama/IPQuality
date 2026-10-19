@@ -13,11 +13,12 @@ for fn in MediaUnlockTest_TikTok MediaUnlockTest_DisneyPlus MediaUnlockTest_Netf
  eval "$fn(){ echo $fn >> \"\$calls\"; }"
 done
 hide_ipv4(){ :; }; hide_ipv6(){ :; }
-show_head(){ :; }; show_basic(){ :; }; show_type(){ :; }; show_factor(){ :; }; show_media(){ :; }; show_tail(){ :; }
+show_head(){ :; }; show_basic(){ :; }; show_type(){ :; }; show_factor(){ :; }; show_score(){ :; }; show_media(){ :; }; show_tail(){ :; }
+ip2location[score]=3; scamalytics[score]=4; ipapi[score]="0.05%"; abuseipdb[score]=0
 check_IP 8.8.8.8 4 >/dev/null
 [[ $(wc -l < "$calls") -eq 15 ]]
-printf '%s' "$ipjson" | jq -e 'keys == ["Factor","Head","Info","Media","Type"] and .Head.IP == "8.8.8.8" and (.Factor.Proxy | has("IPQS") or has("DBIP") or has("IPWHOIS") | not)' >/dev/null
+printf '%s' "$ipjson" | jq -e 'keys == ["Factor","Head","Info","Media","Score","Type"] and (.Score | keys == ["AbuseIPDB","IP2LOCATION","SCAMALYTICS","ipapi"]) and .Score.ipapi == "0.05%" and .Score.AbuseIPDB == "0" and .Head.IP == "8.8.8.8" and (.Factor.Proxy | has("IPQS") or has("DBIP") or has("IPWHOIS") | not)' >/dev/null
 for fn in db_ipqs db_dbip check_mail check_dnsbl check_dnsbl_parallel; do
  if declare -F "$fn" >/dev/null; then echo "Disabled function present: $fn" >&2; exit 1; fi
 done
-printf 'Focused checks: no disabled queries, mail/DNSBL or score output\n'
+printf 'Focused checks: no disabled queries, mail/DNSBL ; four independent scores preserved\n'

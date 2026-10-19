@@ -1,5 +1,5 @@
 #!/bin/bash
-script_version="v2026-09-16-utenasama.1"
+script_version="v2026-09-16-utenasama.2"
 check_bash(){
 current_bash_version=$(bash --version|head -n 1|awk -F ' ' '{for (i=1; i<=NF; i++) if ($i ~ /^[0-9]+\.[0-9]+\.[0-9]+/) {print $i; exit}}'|cut -d . -f 1)
 if [ "$current_bash_version" = "0" ]||[ "$current_bash_version" = "1" ]||[ "$current_bash_version" = "2" ]||[ "$current_bash_version" = "3" ];then
@@ -1805,6 +1805,10 @@ sscore[text2]="${tmp1:17-p6:16}"
 sscore[text3]="${tmp1:33-p6:16}"
 sscore[text4]="${tmp1:49-p6}"
 }
+show_score(){
+echo -e "${sscore[title]}"
+printf 'IP2Location: %s / 99\nScamalytics: %s / 100\nipapi: %s\nAbuseIPDB: %s / 100\n' "${ip2location[score]:-—}" "${scamalytics[score]:-—}" "${ipapi[score]:-—}" "${abuseipdb[score]:-—}"
+}
 show_factor(){
 echo -ne "\r${sfactor[title]}\n"
 printf '%-16s %-8s %-8s %-8s %-8s %-8s %-8s\n' 'Database' 'Proxy' 'Tor' 'VPN' 'Server' 'Abuser' 'Robot'
@@ -2016,6 +2020,7 @@ save_json(){
 local head_updates=""
 local basic_updates=""
 local type_updates=""
+local score_updates=""
 local factor_updates=""
 local media_updates=""
 if [ $fullIP -eq 1 ];then
@@ -2091,6 +2096,10 @@ type_updates+=".Type |= . * { Company: { IPinfo: \"$(clean_ansi "${ipinfo[scomty
 type_updates+=".Type |= . * { Company: { ipregistry: \"$(clean_ansi "${ipregistry[scomtype]:-null}")\" } } | "
 type_updates+=".Type |= . * { Company: { ipapi: \"$(clean_ansi "${ipapi[scomtype]:-null}")\" } } | "
 type_updates+=".Type |= . * { Company: { IP2LOCATION: \"$(clean_ansi "${ip2location[scomtype]:-null}")\" } } | "
+score_updates+=".Score |= . + { IP2LOCATION: \"${ip2location[score]:-null}\" } | "
+score_updates+=".Score |= . + { SCAMALYTICS: \"${scamalytics[score]:-null}\" } | "
+score_updates+=".Score |= . + { ipapi: \"${ipapi[score]:-null}\" } | "
+score_updates+=".Score |= . + { AbuseIPDB: \"${abuseipdb[score]:-null}\" } | "
 factor_updates+=$(factor_bool "${ip2location[countrycode]}" "IP2LOCATION" "CountryCode")
 factor_updates+=$(factor_bool "${ipapi[countrycode]}" "ipapi" "CountryCode")
 factor_updates+=$(factor_bool "${ipregistry[countrycode]}" "ipregistry" "CountryCode")
@@ -2154,7 +2163,7 @@ media_updates+=".Media |= . * { Youtube: { Type: \"$(clean_ansi "${youtube[utype
 media_updates+=".Media |= . * { AmazonPrimeVideo: { Type: \"$(clean_ansi "${amazon[utype]:-null}")\" } } | "
 media_updates+=".Media |= . * { Reddit: { Type: \"$(clean_ansi "${reddit[utype]:-null}")\" } } | "
 media_updates+=".Media |= . * { ChatGPT: { Type: \"$(clean_ansi "${chatgpt[utype]:-null}")\" } } | "
-ipjson=$(echo "$ipjson"|jq "$head_updates$basic_updates$type_updates$factor_updates$media_updates.")
+ipjson=$(echo "$ipjson"|jq "$head_updates$basic_updates$type_updates$score_updates$factor_updates$media_updates.")
 }
 check_IP(){
 IP=$1
@@ -2163,6 +2172,7 @@ ipjson='{
       "Head": {},
       "Info": {},
       "Type": {},
+      "Score": {},
       "Factor": {},
       "Media": {}
     }'
@@ -2195,6 +2205,7 @@ if [[ $mode_lite -eq 0 ]];then
 local ip_report=$(show_head
 show_basic
 show_type
+show_score
 show_factor
 show_media
 show_tail)
@@ -2202,6 +2213,7 @@ else
 local ip_report=$(show_head
 show_basic_lite
 show_type_lite
+show_score
 show_factor
 show_media
 show_tail)
