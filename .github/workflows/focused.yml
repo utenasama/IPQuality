@@ -1,0 +1,11 @@
+name: Focused checks
+on: [push, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  contracts:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash -n ip.sh
+      - run: bash tests/focused.sh

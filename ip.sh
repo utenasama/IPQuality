@@ -1,5 +1,5 @@
 #!/bin/bash
-script_version="v2026-09-16"
+script_version="v2026-09-16-utenasama.1"
 check_bash(){
 current_bash_version=$(bash --version|head -n 1|awk -F ' ' '{for (i=1; i<=NF; i++) if ($i ~ /^[0-9]+\.[0-9]+\.[0-9]+/) {print $i; exit}}'|cut -d . -f 1)
 if [ "$current_bash_version" = "0" ]||[ "$current_bash_version" = "1" ]||[ "$current_bash_version" = "2" ]||[ "$current_bash_version" = "3" ];then
@@ -10,6 +10,7 @@ exit 0
 fi
 }
 check_bash
+curl(){ command curl --connect-timeout 5 --max-time 20 --max-filesize 8388608 "$@"; }
 Font_B="\033[1m"
 Font_D="\033[2m"
 Font_I="\033[3m"
@@ -46,9 +47,7 @@ declare -A ipregistry
 declare -A ipapi
 declare -A abuseipdb
 declare -A ip2location
-declare -A dbip
 declare -A ipdata
-declare -A ipqs
 declare -A tiktok
 declare -A disney
 declare -A netflix
@@ -81,7 +80,7 @@ declare mode_lite=0
 declare mode_json=0
 declare mode_menu=0
 declare mode_output=0
-declare mode_privacy=0
+declare mode_privacy=1
 declare ipjson
 declare ibar=0
 declare bar_pid
@@ -147,7 +146,7 @@ shead[title]="IP QUALITY CHECK REPORT: "
 shead[title_lite]="IP QUALITY CHECK REPORT(LITE): "
 shead[ver]="Version: $script_version"
 shead[bash]="bash <(curl -sL https://Check.Place) -EI"
-shead[git]="https://github.com/xykt/IPQuality"
+shead[git]="https://github.com/utenasama/IPQuality"
 shead[time_raw]=$(date -u +"%Y-%m-%d %H:%M:%S UTC")
 shead[time]="Report Time: ${shead[time_raw]}"
 shead[ltitle]=25
@@ -272,7 +271,7 @@ shead[title]="IP质量体检报告："
 shead[title_lite]="IP质量体检报告(Lite)："
 shead[ver]="脚本版本：$script_version"
 shead[bash]="bash <(curl -sL https://Check.Place) -I"
-shead[git]="https://github.com/xykt/IPQuality"
+shead[git]="https://github.com/utenasama/IPQuality"
 shead[time_raw]=$(TZ="Asia/Shanghai" date +"%Y-%m-%d %H:%M:%S CST")
 shead[time]="报告时间：${shead[time_raw]}"
 shead[ltitle]=16
@@ -802,7 +801,7 @@ ipinfo[proxy]=$(echo "$RESPONSE"|jq -r '.data.privacy.proxy')
 ipinfo[tor]=$(echo "$RESPONSE"|jq -r '.data.privacy.tor')
 ipinfo[vpn]=$(echo "$RESPONSE"|jq -r '.data.privacy.vpn')
 ipinfo[server]=$(echo "$RESPONSE"|jq -r '.data.privacy.hosting')
-local ISO3166=$(curl -sL -m 10 "${rawgithub}main/ref/iso3166.json")
+local ISO3166=$(curl -sL -m 10 "${rawgithub}87397e2c3196ec796f5477c83343c2354df601ea/ref/iso3166.json")
 ipinfo[asn]=$(echo "$RESPONSE"|jq -r '.data.asn.asn'|sed 's/^AS//')
 ipinfo[org]=$(echo "$RESPONSE"|jq -r '.data.asn.name')
 ipinfo[city]=$(echo "$RESPONSE"|jq -r '.data.city')
@@ -1128,38 +1127,6 @@ elif [[ ${ip2location[score]} -ge 66 ]];then
 ip2location[risk]="${sscore[high]}"
 fi
 }
-db_dbip(){
-local temp_info="$Font_Cyan$Font_B${sinfo[database]}${Font_I}DB-IP $Font_Suffix"
-((ibar_step+=3))
-show_progress_bar "$temp_info" $((40-6-${sinfo[ldatabase]}))&
-bar_pid="$!"&&disown "$bar_pid"
-trap "kill_progress_bar" RETURN
-dbip=()
-local tmpcurlarg="$CurlARG"
-if [[ $IP == *:* ]];then
-tmpcurlarg=""
-fi
-local RESPONSE=$(curl $tmpcurlarg -sL -m 10 -H 'accept: */*' -H 'accept-language: en-US,en;q=0.9' -H 'content-type: text/html;charset=UTF-8' -H 'dnt: 1' -H 'user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36' "https://db-ip.com/api/core/")
-local tmpurl=$(echo "$RESPONSE"|sed -n 's/.*data-api-key="\([^"]*\)".*/\1/p'|head -n 1)
-RESPONSE=$(curl $tmpcurlarg -sL -m 10 -H 'accept: */*' -H 'accept-language: en-US,en;q=0.9' -H 'content-type: text/plain;charset=UTF-8' -H 'dnt: 1' -H 'origin: https://db-ip.com' -H 'priority: u=1, i' -H 'referer: https://db-ip.com/' -H 'sec-ch-ua: "Not=A?Brand";v="99", "Google Chrome";v="151", "Chromium";v="151"' -H 'sec-ch-ua-mobile: ?0' -H 'sec-ch-ua-platform: "Windows"' -H 'sec-fetch-dest: empty' -H 'sec-fetch-mode: cors' -H 'sec-fetch-site: same-site' -H 'user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36' --data-raw '[["11.49","EUR"],["139.90","EUR"],["699.90","EUR"]]' "https://api.db-ip.com/v2/$tmpurl/self?convertCurrencies")
-echo "$RESPONSE"|jq . >/dev/null 2>&1||RESPONSE=""
-dbip[robot]=$(echo "$RESPONSE"|jq -r '.isCrawler')
-dbip[proxy]=$(echo "$RESPONSE"|jq -r '.isProxy')
-dbip[risktext]=$(echo "$RESPONSE"|jq -r '.threatLevel')
-dbip[countrycode]=$(echo "$RESPONSE"|jq -r '.countryCode')
-shopt -s nocasematch
-case ${dbip[risktext]} in
-"low")dbip[risk]="${sscore[low]}"
-dbip[score]=0
-;;
-"medium")dbip[risk]="${sscore[medium]}"
-dbip[score]=50
-;;
-"high")dbip[risk]="${sscore[high]}"
-dbip[score]=100
-esac
-shopt -u nocasematch
-}
 db_ipdata(){
 local temp_info="$Font_Cyan$Font_B${sinfo[database]}${Font_I}ipdata $Font_Suffix"
 ((ibar_step+=3))
@@ -1178,32 +1145,6 @@ ipdata[abuser2]=$(echo "$RESPONSE"|jq -r '.threat.is_known_abuser')
 ipdata[abuser3]=$(echo "$RESPONSE"|jq -r '.threat.is_known_attacker')
 [[ ${ipdata[abuser1]} == "true" || ${ipdata[abuser2]} == "true" || ${ipdata[abuser3]} == "true" ]]&&ipdata[abuser]="true"
 [[ ${ipdata[abuser1]} == "false" && ${ipdata[abuser2]} == "false" && ${ipdata[abuser3]} == "false" ]]&&ipdata[abuser]="false"
-}
-db_ipqs(){
-local temp_info="$Font_Cyan$Font_B${sinfo[database]}${Font_I}IPQS $Font_Suffix"
-((ibar_step+=3))
-show_progress_bar "$temp_info" $((40-5-${sinfo[ldatabase]}))&
-bar_pid="$!"&&disown "$bar_pid"
-trap "kill_progress_bar" RETURN
-ipqs=()
-local RESPONSE=$(curl $CurlARG -sL -$1 -m 10 "https://ipinfo.check.place/$IP?db=ipqualityscore")
-echo "$RESPONSE"|jq . >/dev/null 2>&1||RESPONSE=""
-ipqs[score]=$(echo "$RESPONSE"|jq -r '.fraud_score')
-if [[ ${ipqs[score]} -lt 75 ]];then
-ipqs[risk]="${sscore[low]}"
-elif [[ ${ipqs[score]} -lt 85 ]];then
-ipqs[risk]="${sscore[suspicious]}"
-elif [[ ${ipqs[score]} -lt 90 ]];then
-ipqs[risk]="${sscore[risky]}"
-elif [[ ${ipqs[score]} -ge 90 ]];then
-ipqs[risk]="${sscore[highrisk]}"
-fi
-ipqs[countrycode]=$(echo "$RESPONSE"|jq -r '.country_code')
-ipqs[proxy]=$(echo "$RESPONSE"|jq -r '.proxy')
-ipqs[tor]=$(echo "$RESPONSE"|jq -r '.tor')
-ipqs[vpn]=$(echo "$RESPONSE"|jq -r '.vpn')
-ipqs[abuser]=$(echo "$RESPONSE"|jq -r '.recent_abuse')
-ipqs[robot]=$(echo "$RESPONSE"|jq -r '.bot_status')
 }
 function check_ip_valide(){
 local IPPattern='^(\<([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\>\.){3}\<([0-9]|[1-9][0-9]|1[0-9][0-9]|2[0-4][0-9]|25[0-5])\>$'
@@ -1697,119 +1638,6 @@ chatgpt[uregion]="${smedia[nodata]}"
 chatgpt[utype]="${smedia[nodata]}"
 fi
 }
-get_sorted_mx_records(){
-local domain=$1
-dig +short MX $domain|sort -n|head -1|awk '{print $2}'
-}
-check_email_service(){
-local service=$1
-local port=25
-local expected_response="220"
-local domain=""
-local host=""
-local response=""
-local success="false"
-case $service in
-"Gmail")domain="gmail.com";;
-"Outlook")domain="outlook.com";;
-"Yahoo")domain="yahoo.com";;
-"Apple")domain="me.com";;
-"MailRU")domain="mail.ru";;
-"AOL")domain="aol.com";;
-"GMX")domain="gmx.com";;
-"MailCOM")domain="mail.com";;
-"163")domain="163.com";;
-"Sohu")domain="sohu.com";;
-"Sina")domain="sina.com";;
-"QQ")domain="qq.com";;
-*)return
-esac
-if [[ -z $host ]];then
-local mx_hosts=($(get_sorted_mx_records $domain))
-for host in "${mx_hosts[@]}";do
-response=$(timeout 5 bash -c "echo -e 'QUIT\r\n' | nc -s $IP -w4 $host $port 2>&1")
-smail_response[$service]=$response
-if [[ $response == *"$expected_response"* ]];then
-success="true"
-smail[$service]="$Font_Black+$Font_Suffix$Back_Green$Font_White$Font_B$service$Font_Suffix"
-smailstatus[$service]="true"
-smail[remote]=1
-break
-fi
-done
-else
-response=$(timeout 5 bash -c "echo -e 'QUIT\r\n' | nc -s $IP -w4 $host $port 2>&1")
-if [[ $response == *"$expected_response"* ]];then
-success="true"
-smail[$service]="$Font_Black+$Font_Suffix$Back_Green$Font_White$Font_B$service$Font_Suffix"
-smailstatus[$service]="true"
-smail[remote]=1
-fi
-fi
-if [[ $success == "false" ]];then
-smail[$service]="$Font_Black-$Font_Suffix$Back_Red$Font_White$Font_B$service$Font_Suffix"
-smailstatus[$service]="false"
-fi
-}
-check_mail(){
-ss -tano|grep -q ":25\b"&&smail[local]=2||smail[local]=0
-if [[ smail[local] -ne 2 && -z $usePROXY ]];then
-local response=$(timeout 10 bash -c "echo -e 'QUIT\r\n' | nc -s $IP -p25 -w9 smtp.mailgun.org 25 2>&1")
-[[ $response == *"220"* ]]&&smail[local]=1
-fi
-[[ -n $usePROXY ]]&&smail[local]=0
-smail[remote]=0
-services=("Gmail" "Outlook" "Yahoo" "Apple" "QQ" "MailRU" "AOL" "GMX" "MailCOM" "163" "Sohu" "Sina")
-for service in "${services[@]}";do
-local temp_info="$Font_Cyan$Font_B${sinfo[mail]}$Font_I$service$Font_Suffix "
-((ibar_step+=3))
-show_progress_bar "$temp_info" $((40-1-${#service}-${sinfo[lmail]}))&
-bar_pid="$!"&&disown "$bar_pid"
-check_email_service $service
-kill_progress_bar
-done
-}
-check_dnsbl_parallel(){
-ip_to_check=$1
-parallel_jobs=$2
-smail[t]=0
-smail[c]=0
-smail[m]=0
-smail[b]=0
-reversed_ip=$(echo "$ip_to_check"|awk -F. '{print $4"."$3"."$2"."$1}')
-local total=0
-local clean=0
-local blacklisted=0
-local other=0
-curl $CurlARG -sL "${rawgithub}main/ref/dnsbl.list"|sort -u|xargs -P "$parallel_jobs" -I {} bash -c "result=\$(dig +short \"$reversed_ip.{}\" A); if [[ -z \"\$result\" ]]; then echo 'Clean'; elif [[ \"\$result\" =~ ^127\.255\.255\. ]]; then echo 'Clean'; elif [[ \"\$result\" == '127.0.0.2' ]]; then echo 'Blacklisted'; else echo 'Other'; fi"|{
-while IFS= read -r line;do
-((total++))
-case "$line" in
-"Clean")((clean++));;
-"Blacklisted")((blacklisted++));;
-*)((other++))
-esac
-done
-smail[t]="$total"
-smail[c]="$clean"
-smail[m]="$other"
-smail[b]="$blacklisted"
-echo "${smail[t]} ${smail[c]} ${smail[m]} ${smail[b]}"
-}
-}
-check_dnsbl(){
-local temp_info="$Font_Cyan$Font_B${sinfo[dnsbl]} $Font_Suffix"
-((ibar_step=95))
-show_progress_bar "$temp_info" $((40-1-${sinfo[ldnsbl]}))&
-bar_pid="$!"&&disown "$bar_pid"
-trap "kill_progress_bar" RETURN
-local num_array=($(check_dnsbl_parallel "$IP" 50))
-smail[t]=${num_array[0]:-0}
-smail[c]=${num_array[1]:-0}
-smail[m]=${num_array[2]:-0}
-smail[b]=${num_array[3]:-0}
-smail[sdnsbl]="$Font_Cyan${smail[dnsbl]}  ${smail[available]}${smail[t]}   ${smail[clean]}${smail[c]}   ${smail[marked]}${smail[m]}   ${smail[blacklisted]}${smail[b]}$Font_Suffix"
-}
 show_head(){
 echo -ne "\r$(printf '%72s'|tr ' ' '#')\n"
 if [[ $mode_lite -eq 0 ]];then
@@ -1977,155 +1805,19 @@ sscore[text2]="${tmp1:17-p6:16}"
 sscore[text3]="${tmp1:33-p6:16}"
 sscore[text4]="${tmp1:49-p6}"
 }
-show_score(){
-echo -ne "\r${sscore[title]}\n"
-echo -ne "\r${sscore[range]}\n"
-if [[ -n ${ip2location[score]} && $mode_lite -eq 0 ]];then
-sscore_text "${ip2location[score]}" ${ip2location[score]} 33 66 99 13
-echo -ne "\r${Font_Cyan}IP2Location${sscore[colon]}$Font_White$Font_B${sscore[text1]}$Back_Green${sscore[text2]}$Back_Yellow${sscore[text3]}$Back_Red${sscore[text4]}$Font_Suffix${ip2location[risk]}\n"
-fi
-if [[ -n ${scamalytics[score]} ]];then
-sscore_text "${scamalytics[score]}" ${scamalytics[score]} 20 60 100 13
-echo -ne "\r${Font_Cyan}Scamalytics${sscore[colon]}$Font_White$Font_B${sscore[text1]}$Back_Green${sscore[text2]}$Back_Yellow${sscore[text3]}$Back_Red${sscore[text4]}$Font_Suffix${scamalytics[risk]}\n"
-fi
-if [[ -n ${ipapi[score]} ]];then
-local tmp_score=$(echo "${ipapi[scorenum]} * 10000 / 1"|bc)
-sscore_text "${ipapi[score]}" $tmp_score 85 300 10000 7
-echo -ne "\r${Font_Cyan}ipapi${sscore[colon]}$Font_White$Font_B${sscore[text1]}$Back_Green${sscore[text2]}$Back_Yellow${sscore[text3]}$Back_Red${sscore[text4]}$Font_Suffix${ipapi[risk]}\n"
-fi
-if [[ $mode_lite -eq 0 ]];then
-sscore_text "${abuseipdb[score]}" ${abuseipdb[score]} 25 25 100 11
-[[ -n ${abuseipdb[score]} ]]&&echo -ne "\r${Font_Cyan}AbuseIPDB${sscore[colon]}$Font_White$Font_B${sscore[text1]}$Back_Green${sscore[text2]}$Back_Yellow${sscore[text3]}$Back_Red${sscore[text4]}$Font_Suffix${abuseipdb[risk]}\n"
-if [ -n "${ipqs[score]}" ]&&[ "${ipqs[score]}" != "null" ];then
-sscore_text "${ipqs[score]}" ${ipqs[score]} 75 85 100 6
-echo -ne "\r${Font_Cyan}IPQS${sscore[colon]}$Font_White$Font_B${sscore[text1]}$Back_Green${sscore[text2]}$Back_Yellow${sscore[text3]}$Back_Red${sscore[text4]}$Font_Suffix${ipqs[risk]}\n"
-fi
-fi
-sscore_text " " ${dbip[score]} 33 66 100 7
-[[ -n ${dbip[risk]} ]]&&echo -ne "\r${Font_Cyan}DB-IP${sscore[colon]}$Font_White$Font_B${sscore[text1]}$Back_Green${sscore[text2]}$Back_Yellow${sscore[text3]}$Back_Red${sscore[text4]}$Font_Suffix${dbip[risk]}\n"
-}
-format_factor(){
-local tmp_txt="  "
-if [[ $1 == "true" ]];then
-tmp_txt+="${sfactor[yes]}"
-elif [[ $1 == "false" ]];then
-tmp_txt+="${sfactor[no]}"
-elif [ ${#1} -eq 2 ];then
-tmp_txt+="$Font_Green[$1]$Font_Suffix"
-else
-tmp_txt+="${sfactor[na]}"
-fi
-tmp_txt+="    "
-if [[ $2 == "true" ]];then
-tmp_txt+="${sfactor[yes]}"
-elif [[ $2 == "false" ]];then
-tmp_txt+="${sfactor[no]}"
-elif [ ${#2} -eq 2 ];then
-tmp_txt+="$Font_Green[$2]$Font_Suffix"
-else
-tmp_txt+="${sfactor[na]}"
-fi
-tmp_txt+="    "
-if [[ $3 == "true" ]];then
-tmp_txt+="${sfactor[yes]}"
-elif [[ $3 == "false" ]];then
-tmp_txt+="${sfactor[no]}"
-elif [ ${#3} -eq 2 ];then
-tmp_txt+="$Font_Green[$3]$Font_Suffix"
-else
-tmp_txt+="${sfactor[na]}"
-fi
-tmp_txt+="    "
-if [[ $4 == "true" ]];then
-tmp_txt+="${sfactor[yes]}"
-elif [[ $4 == "false" ]];then
-tmp_txt+="${sfactor[no]}"
-elif [ ${#4} -eq 2 ];then
-tmp_txt+="$Font_Green[$4]$Font_Suffix"
-else
-tmp_txt+="${sfactor[na]}"
-fi
-if [[ $mode_lite -eq 0 ]];then
-tmp_txt+="    "
-if [[ $5 == "true" ]];then
-tmp_txt+="${sfactor[yes]}"
-elif [[ $5 == "false" ]];then
-tmp_txt+="${sfactor[no]}"
-elif [ ${#5} -eq 2 ];then
-tmp_txt+="$Font_Green[$5]$Font_Suffix"
-else
-tmp_txt+="${sfactor[na]}"
-fi
-tmp_txt+="    "
-if [[ $6 == "true" ]];then
-tmp_txt+="${sfactor[yes]}"
-elif [[ $6 == "false" ]];then
-tmp_txt+="${sfactor[no]}"
-elif [ ${#6} -eq 2 ];then
-tmp_txt+="$Font_Green[$6]$Font_Suffix"
-else
-tmp_txt+="${sfactor[na]}"
-fi
-tmp_txt+="    "
-if [[ $7 == "true" ]];then
-tmp_txt+="${sfactor[yes]}"
-elif [[ $7 == "false" ]];then
-tmp_txt+="${sfactor[no]}"
-elif [ ${#7} -eq 2 ];then
-tmp_txt+="$Font_Green[$7]$Font_Suffix"
-else
-tmp_txt+="${sfactor[na]}"
-fi
-tmp_txt+="    "
-if [[ $8 == "true" ]];then
-tmp_txt+="${sfactor[yes]}"
-elif [[ $8 == "false" ]];then
-tmp_txt+="${sfactor[no]}"
-elif [ ${#8} -eq 2 ];then
-tmp_txt+="$Font_Green[$8]$Font_Suffix"
-else
-tmp_txt+="${sfactor[na]}"
-fi
-fi
-echo "$tmp_txt"
-}
 show_factor(){
-local tmp_factor=""
 echo -ne "\r${sfactor[title]}\n"
-echo -ne "\r$Font_Cyan${sfactor[factor]}${Font_I}IP2Location ipapi ipregistry IPQS Scamalytics ipdata IPinfo DB-IP$Font_Suffix\n"
-tmp_factor=$(format_factor "${ip2location[countrycode]}" "${ipapi[countrycode]}" "${ipregistry[countrycode]}" "${ipqs[countrycode]}" "${scamalytics[countrycode]}" "${ipdata[countrycode]}" "${ipinfo[countrycode]}" "${dbip[countrycode]}")
-echo -ne "\r$Font_Cyan${sfactor[countrycode]}$Font_Suffix$tmp_factor\n"
-tmp_factor=$(format_factor "${ip2location[proxy]}" "${ipapi[proxy]}" "${ipregistry[proxy]}" "${ipqs[proxy]}" "${scamalytics[proxy]}" "${ipdata[proxy]}" "${ipinfo[proxy]}" "${dbip[proxy]}")
-echo -ne "\r$Font_Cyan${sfactor[proxy]}$Font_Suffix$tmp_factor\n"
-tmp_factor=$(format_factor "${ip2location[tor]}" "${ipapi[tor]}" "${ipregistry[tor]}" "${ipqs[tor]}" "${scamalytics[tor]}" "${ipdata[tor]}" "${ipinfo[tor]}" "${dbip[tor]}")
-echo -ne "\r$Font_Cyan${sfactor[tor]}$Font_Suffix$tmp_factor\n"
-tmp_factor=$(format_factor "${ip2location[vpn]}" "${ipapi[vpn]}" "${ipregistry[vpn]}" "${ipqs[vpn]}" "${scamalytics[vpn]}" "${ipdata[vpn]}" "${ipinfo[vpn]}" "${dbip[vpn]}")
-echo -ne "\r$Font_Cyan${sfactor[vpn]}$Font_Suffix$tmp_factor\n"
-tmp_factor=$(format_factor "${ip2location[server]}" "${ipapi[server]}" "${ipregistry[server]}" "${ipqs[server]}" "${scamalytics[server]}" "${ipdata[server]}" "${ipinfo[server]}" "${dbip[server]}")
-echo -ne "\r$Font_Cyan${sfactor[server]}$Font_Suffix$tmp_factor\n"
-tmp_factor=$(format_factor "${ip2location[abuser]}" "${ipapi[abuser]}" "${ipregistry[abuser]}" "${ipqs[abuser]}" "${scamalytics[abuser]}" "${ipdata[abuser]}" "${ipinfo[abuser]}" "${dbip[abuser]}")
-echo -ne "\r$Font_Cyan${sfactor[abuser]}$Font_Suffix$tmp_factor\n"
-tmp_factor=$(format_factor "${ip2location[robot]}" "${ipapi[robot]}" "${ipregistry[robot]}" "${ipqs[robot]}" "${scamalytics[robot]}" "${ipdata[robot]}" "${ipinfo[robot]}" "${dbip[robot]}")
-echo -ne "\r$Font_Cyan${sfactor[robot]}$Font_Suffix$tmp_factor\n"
-}
-show_factor_lite(){
-local tmp_factor=""
-echo -ne "\r${sfactor[title]}\n"
-echo -ne "\r$Font_Cyan${sfactor[factor]}$Font_I    ipapi ipregistry IPinfo DB-IP$Font_Suffix\n"
-tmp_factor=$(format_factor "${ipapi[countrycode]}" "${ipregistry[countrycode]}" "${ipinfo[countrycode]}" "${dbip[countrycode]}")
-echo -ne "\r$Font_Cyan${sfactor[countrycode]}$Font_Suffix$tmp_factor\n"
-tmp_factor=$(format_factor "${ipapi[proxy]}" "${ipregistry[proxy]}" "${ipinfo[proxy]}" "${dbip[proxy]}")
-echo -ne "\r$Font_Cyan${sfactor[proxy]}$Font_Suffix$tmp_factor\n"
-tmp_factor=$(format_factor "${ipapi[tor]}" "${ipregistry[tor]}" "${ipinfo[tor]}" "${dbip[tor]}")
-echo -ne "\r$Font_Cyan${sfactor[tor]}$Font_Suffix$tmp_factor\n"
-tmp_factor=$(format_factor "${ipapi[vpn]}" "${ipregistry[vpn]}" "${ipinfo[vpn]}" "${dbip[vpn]}")
-echo -ne "\r$Font_Cyan${sfactor[vpn]}$Font_Suffix$tmp_factor\n"
-tmp_factor=$(format_factor "${ipapi[server]}" "${ipregistry[server]}" "${ipinfo[server]}" "${dbip[server]}")
-echo -ne "\r$Font_Cyan${sfactor[server]}$Font_Suffix$tmp_factor\n"
-tmp_factor=$(format_factor "${ipapi[abuser]}" "${ipregistry[abuser]}" "${ipinfo[abuser]}" "${dbip[abuser]}")
-echo -ne "\r$Font_Cyan${sfactor[abuser]}$Font_Suffix$tmp_factor\n"
-tmp_factor=$(format_factor "${ipapi[robot]}" "${ipregistry[robot]}" "${ipinfo[robot]}" "${dbip[robot]}")
-echo -ne "\r$Font_Cyan${sfactor[robot]}$Font_Suffix$tmp_factor\n"
+printf '%-16s %-8s %-8s %-8s %-8s %-8s %-8s\n' 'Database' 'Proxy' 'Tor' 'VPN' 'Server' 'Abuser' 'Robot'
+local provider field value line
+for provider in ip2location scamalytics ipapi abuseipdb ipinfo ipregistry ipdata; do
+local -n values="$provider"
+line="$provider"
+for field in proxy tor vpn server abuser robot; do
+value="${values[$field]:-unknown}"
+line+="\t$value"
+done
+printf '%b\n' "$line"
+done
 }
 show_media(){
 echo -ne "\r${smedia[title]}\n"
@@ -2133,26 +1825,6 @@ echo -ne "\r$Font_Cyan${smedia[meida]}$Font_I TikTok   Disney+  Netflix Youtube 
 echo -ne "\r$Font_Cyan${smedia[status]}${tiktok[ustatus]}${disney[ustatus]}${netflix[ustatus]}${youtube[ustatus]}${amazon[ustatus]}${reddit[ustatus]}${chatgpt[ustatus]}$Font_Suffix\n"
 echo -ne "\r$Font_Cyan${smedia[region]}$Font_Green${tiktok[uregion]}${disney[uregion]}${netflix[uregion]}${youtube[uregion]}${amazon[uregion]}${reddit[uregion]}${chatgpt[uregion]}$Font_Suffix\n"
 echo -ne "\r$Font_Cyan${smedia[type]}${tiktok[utype]}${disney[utype]}${netflix[utype]}${youtube[utype]}${amazon[utype]}${reddit[utype]}${chatgpt[utype]}$Font_Suffix\n"
-}
-show_mail(){
-echo -ne "\r${smail[title]}\n"
-if [ ${smail[local]} -eq 1 ];then
-echo -ne "\r$Font_Cyan${smail[port]}$Font_Suffix${smail[yes]}\n"
-elif [ ${smail[local]} -eq 2 ];then
-echo -ne "\r$Font_Cyan${smail[port]}$Font_Suffix${smail[occupied]}\n"
-else
-echo -ne "\r$Font_Cyan${smail[port]}$Font_Suffix${smail[no]}\n"
-fi
-if [ ${smail[remote]} -eq 1 ];then
-echo -ne "\r$Font_Cyan${smail[provider]}$Font_Suffix"
-for service in "${services[@]}";do
-echo -ne "${smail[$service]}"
-done
-echo ""
-else
-echo -ne "\r$Font_Cyan${smail[provider]}${smail[blocked]}$Font_Suffix\n"
-fi
-[[ $1 -eq 4 ]]&&echo -ne "\r${smail[sdnsbl]}\n"
 }
 show_tail(){
 echo -ne "\r$(printf '%72s'|tr ' ' '=')\n"
@@ -2254,7 +1926,7 @@ local -a ads=()
 local i=1
 while :;do
 local content
-content=$(curl -fsL --max-time 5 "${rawgithub}main/ref/ad$i.ans")||break
+content=$(curl -fsL --max-time 5 "${rawgithub}87397e2c3196ec796f5477c83343c2354df601ea/ref/ad$i.ans")||break
 ads+=("$content")
 ((i++))
 done
@@ -2270,7 +1942,7 @@ indices[i]=${indices[j]}
 indices[j]=$tmp
 done
 local -a aad
-aad[0]=$(curl -sL --max-time 5 "${rawgithub}main/ref/sponsor.ans")
+aad[0]=$(curl -sL --max-time 5 "${rawgithub}87397e2c3196ec796f5477c83343c2354df601ea/ref/sponsor.ans")
 for ((i=0; i<adCount; i++));do
 aad[${indices[i]}]="${ads[i]}"
 done
@@ -2316,8 +1988,8 @@ ADLines=$(((adCount+1)*12))
 fi
 }
 read_ref(){
-Media_Cookie=$(curl $CurlARG -sL --retry 3 --max-time 10 "${rawgithub}main/ref/cookies.txt")
-IATA_Database="${rawgithub}main/ref/iata-icao.csv"
+Media_Cookie=$(curl $CurlARG -sL --retry 3 --max-time 10 "${rawgithub}87397e2c3196ec796f5477c83343c2354df601ea/ref/cookies.txt")
+IATA_Database="${rawgithub}87397e2c3196ec796f5477c83343c2354df601ea/ref/iata-icao.csv"
 }
 clean_ansi(){
 local input="$1"
@@ -2344,10 +2016,8 @@ save_json(){
 local head_updates=""
 local basic_updates=""
 local type_updates=""
-local score_updates=""
 local factor_updates=""
 local media_updates=""
-local mail_updates=""
 if [ $fullIP -eq 1 ];then
 head_updates+=".Head |= . + { IP: \"${IP:-null}\" } | "
 else
@@ -2421,75 +2091,48 @@ type_updates+=".Type |= . * { Company: { IPinfo: \"$(clean_ansi "${ipinfo[scomty
 type_updates+=".Type |= . * { Company: { ipregistry: \"$(clean_ansi "${ipregistry[scomtype]:-null}")\" } } | "
 type_updates+=".Type |= . * { Company: { ipapi: \"$(clean_ansi "${ipapi[scomtype]:-null}")\" } } | "
 type_updates+=".Type |= . * { Company: { IP2LOCATION: \"$(clean_ansi "${ip2location[scomtype]:-null}")\" } } | "
-score_updates+=".Score |= . + { IP2LOCATION: \"${ip2location[score]:-null}\" } | "
-score_updates+=".Score |= . + { SCAMALYTICS: \"${scamalytics[score]:-null}\" } | "
-score_updates+=".Score |= . + { ipapi: \"${ipapi[score]:-null}\" } | "
-score_updates+=".Score |= . + { AbuseIPDB: \"${abuseipdb[score]:-null}\" } | "
-score_updates+=".Score |= . + { IPQS: \"${ipapi[ipqs]:-null}\" } | "
-score_updates+=".Score |= . + { DBIP: \"${dbip[score]:-null}\" } | "
 factor_updates+=$(factor_bool "${ip2location[countrycode]}" "IP2LOCATION" "CountryCode")
 factor_updates+=$(factor_bool "${ipapi[countrycode]}" "ipapi" "CountryCode")
 factor_updates+=$(factor_bool "${ipregistry[countrycode]}" "ipregistry" "CountryCode")
-factor_updates+=$(factor_bool "${ipqs[countrycode]}" "IPQS" "CountryCode")
 factor_updates+=$(factor_bool "${scamalytics[countrycode]}" "SCAMALYTICS" "CountryCode")
 factor_updates+=$(factor_bool "${ipdata[countrycode]}" "ipdata" "CountryCode")
 factor_updates+=$(factor_bool "${ipinfo[countrycode]}" "IPinfo" "CountryCode")
-factor_updates+=$(factor_bool "${ipwhois[countrycode]}" "IPWHOIS" "CountryCode")
-factor_updates+=$(factor_bool "${dbip[countrycode]}" "DBIP" "CountryCode")
 factor_updates+=$(factor_bool "${ip2location[proxy]}" "IP2LOCATION" "Proxy")
 factor_updates+=$(factor_bool "${ipapi[proxy]}" "ipapi" "Proxy")
 factor_updates+=$(factor_bool "${ipregistry[proxy]}" "ipregistry" "Proxy")
-factor_updates+=$(factor_bool "${ipqs[proxy]}" "IPQS" "Proxy")
 factor_updates+=$(factor_bool "${scamalytics[proxy]}" "SCAMALYTICS" "Proxy")
 factor_updates+=$(factor_bool "${ipdata[proxy]}" "ipdata" "Proxy")
 factor_updates+=$(factor_bool "${ipinfo[proxy]}" "IPinfo" "Proxy")
-factor_updates+=$(factor_bool "${ipwhois[proxy]}" "IPWHOIS" "Proxy")
-factor_updates+=$(factor_bool "${dbip[proxy]}" "DBIP" "Proxy")
 factor_updates+=$(factor_bool "${ip2location[tor]}" "IP2LOCATION" "Tor")
 factor_updates+=$(factor_bool "${ipapi[tor]}" "ipapi" "Tor")
 factor_updates+=$(factor_bool "${ipregistry[tor]}" "ipregistry" "Tor")
-factor_updates+=$(factor_bool "${ipqs[tor]}" "IPQS" "Tor")
 factor_updates+=$(factor_bool "${scamalytics[tor]}" "SCAMALYTICS" "Tor")
 factor_updates+=$(factor_bool "${ipdata[tor]}" "ipdata" "Tor")
 factor_updates+=$(factor_bool "${ipinfo[tor]}" "IPinfo" "Tor")
-factor_updates+=$(factor_bool "${ipwhois[tor]}" "IPWHOIS" "Tor")
-factor_updates+=$(factor_bool "${dbip[tor]}" "DBIP" "Tor")
 factor_updates+=$(factor_bool "${ip2location[vpn]}" "IP2LOCATION" "VPN")
 factor_updates+=$(factor_bool "${ipapi[vpn]}" "ipapi" "VPN")
 factor_updates+=$(factor_bool "${ipregistry[vpn]}" "ipregistry" "VPN")
-factor_updates+=$(factor_bool "${ipqs[vpn]}" "IPQS" "VPN")
 factor_updates+=$(factor_bool "${scamalytics[vpn]}" "SCAMALYTICS" "VPN")
 factor_updates+=$(factor_bool "${ipdata[vpn]}" "ipdata" "VPN")
 factor_updates+=$(factor_bool "${ipinfo[vpn]}" "IPinfo" "VPN")
-factor_updates+=$(factor_bool "${ipwhois[vpn]}" "IPWHOIS" "VPN")
-factor_updates+=$(factor_bool "${dbip[vpn]}" "DBIP" "VPN")
 factor_updates+=$(factor_bool "${ip2location[server]}" "IP2LOCATION" "Server")
 factor_updates+=$(factor_bool "${ipapi[server]}" "ipapi" "Server")
 factor_updates+=$(factor_bool "${ipregistry[server]}" "ipregistry" "Server")
-factor_updates+=$(factor_bool "${ipqs[server]}" "IPQS" "Server")
 factor_updates+=$(factor_bool "${scamalytics[server]}" "SCAMALYTICS" "Server")
 factor_updates+=$(factor_bool "${ipdata[server]}" "ipdata" "Server")
 factor_updates+=$(factor_bool "${ipinfo[server]}" "IPinfo" "Server")
-factor_updates+=$(factor_bool "${ipwhois[server]}" "IPWHOIS" "Server")
-factor_updates+=$(factor_bool "${dbip[server]}" "DBIP" "Server")
 factor_updates+=$(factor_bool "${ip2location[abuser]}" "IP2LOCATION" "Abuser")
 factor_updates+=$(factor_bool "${ipapi[abuser]}" "ipapi" "Abuser")
 factor_updates+=$(factor_bool "${ipregistry[abuser]}" "ipregistry" "Abuser")
-factor_updates+=$(factor_bool "${ipqs[abuser]}" "IPQS" "Abuser")
 factor_updates+=$(factor_bool "${scamalytics[abuser]}" "SCAMALYTICS" "Abuser")
 factor_updates+=$(factor_bool "${ipdata[abuser]}" "ipdata" "Abuser")
 factor_updates+=$(factor_bool "${ipinfo[abuser]}" "IPinfo" "Abuser")
-factor_updates+=$(factor_bool "${ipwhois[abuser]}" "IPWHOIS" "Abuser")
-factor_updates+=$(factor_bool "${dbip[abuser]}" "DBIP" "Abuser")
 factor_updates+=$(factor_bool "${ip2location[robot]}" "IP2LOCATION" "Robot")
 factor_updates+=$(factor_bool "${ipapi[robot]}" "ipapi" "Robot")
 factor_updates+=$(factor_bool "${ipregistry[robot]}" "ipregistry" "Robot")
-factor_updates+=$(factor_bool "${ipqs[robot]}" "IPQS" "Robot")
 factor_updates+=$(factor_bool "${scamalytics[robot]}" "SCAMALYTICS" "Robot")
 factor_updates+=$(factor_bool "${ipdata[robot]}" "ipdata" "Robot")
 factor_updates+=$(factor_bool "${ipinfo[robot]}" "IPinfo" "Robot")
-factor_updates+=$(factor_bool "${ipwhois[robot]}" "IPWHOIS" "Robot")
-factor_updates+=$(factor_bool "${dbip[robot]}" "DBIP" "Robot")
 media_updates+=".Media |= . * { TikTok: { Status: \"$(clean_ansi "${tiktok[ustatus]:-null}")\" } } | "
 media_updates+=".Media |= . * { DisneyPlus: { Status: \"$(clean_ansi "${disney[ustatus]:-null}")\" } } | "
 media_updates+=".Media |= . * { Netflix: { Status: \"$(clean_ansi "${netflix[ustatus]:-null}")\" } } | "
@@ -2511,31 +2154,7 @@ media_updates+=".Media |= . * { Youtube: { Type: \"$(clean_ansi "${youtube[utype
 media_updates+=".Media |= . * { AmazonPrimeVideo: { Type: \"$(clean_ansi "${amazon[utype]:-null}")\" } } | "
 media_updates+=".Media |= . * { Reddit: { Type: \"$(clean_ansi "${reddit[utype]:-null}")\" } } | "
 media_updates+=".Media |= . * { ChatGPT: { Type: \"$(clean_ansi "${chatgpt[utype]:-null}")\" } } | "
-if [[ ${smail[local]} -eq 1 ]];then
-mail_updates+=".Mail |= . + { Port25: true } | "
-for service in "${services[@]}";do
-if [[ ${smailstatus[$service]} == "true" ]];then
-mail_updates+=".Mail |= . + { \"$service\": true } | "
-else
-mail_updates+=".Mail |= . + { \"$service\": false } | "
-fi
-done
-elif [[ ${smail[local]} -eq 2 ]];then
-mail_updates+=".Mail |= . + { Port25: null } | "
-for service in "${services[@]}";do
-mail_updates+=".Mail |= . + { \"$service\": null } | "
-done
-else
-mail_updates+=".Mail |= . + { Port25: false } | "
-for service in "${services[@]}";do
-mail_updates+=".Mail |= . + { \"$service\": false } | "
-done
-fi
-mail_updates+=".Mail |= . * { DNSBlacklist: { Total: ${smail[t]:-null} } } | "
-mail_updates+=".Mail |= . * { DNSBlacklist: { Clean: ${smail[c]:-null} } } | "
-mail_updates+=".Mail |= . * { DNSBlacklist: { Marked: ${smail[m]:-null} } } | "
-mail_updates+=".Mail |= . * { DNSBlacklist: { Blacklisted: ${smail[b]:-null} } } | "
-ipjson=$(echo "$ipjson"|jq "$head_updates$basic_updates$type_updates$score_updates$factor_updates$media_updates$mail_updates.")
+ipjson=$(echo "$ipjson"|jq "$head_updates$basic_updates$type_updates$factor_updates$media_updates.")
 }
 check_IP(){
 IP=$1
@@ -2544,14 +2163,12 @@ ipjson='{
       "Head": {},
       "Info": {},
       "Type": {},
-      "Score": {},
       "Factor": {},
-      "Media": {},
-      "Mail": {}
+      "Media": {}
     }'
 [[ $2 -eq 4 ]]&&hide_ipv4 $IP
 [[ $2 -eq 6 ]]&&hide_ipv6 $IP
-countRunTimes
+: # no visit counter in scheduled collection
 db_maxmind $2
 db_ipinfo
 [[ $mode_lite -eq 0 ]]&&db_scamalytics $2||scamalytics=()
@@ -2559,9 +2176,7 @@ db_ipregistry $2
 db_ipapi $2
 [[ $mode_lite -eq 0 ]]&&db_abuseipdb $2||abuseipdb=()
 [[ $mode_lite -eq 0 ]]&&db_ip2location $2||ip2location=()
-db_dbip
 [[ $mode_lite -eq 0 ]]&&db_ipdata $2||ipdata=()
-[[ $mode_lite -eq 0 ]]&&db_ipqs $2||ipqs=()
 MediaUnlockTest_TikTok $2
 MediaUnlockTest_DisneyPlus $2
 MediaUnlockTest_Netflix $2
@@ -2569,8 +2184,6 @@ MediaUnlockTest_YouTube_Premium $2
 MediaUnlockTest_PrimeVideo_Region $2
 MediaUnlockTest_Reddit $2
 OpenAITest $2
-check_mail
-[[ $2 -eq 4 ]]&&check_dnsbl "$IP" 50
 echo -ne "$Font_LineClear" 1>&2
 if [ $2 -eq 4 ]||[[ $IPV4work -eq 0 || $IPV4check -eq 0 ]];then
 for ((i=0; i<ADLines; i++));do
@@ -2582,19 +2195,15 @@ if [[ $mode_lite -eq 0 ]];then
 local ip_report=$(show_head
 show_basic
 show_type
-show_score
 show_factor
 show_media
-show_mail $2
 show_tail)
 else
 local ip_report=$(show_head
 show_basic_lite
 show_type_lite
-show_score
-show_factor_lite
+show_factor
 show_media
-show_mail $2
 show_tail)
 fi
 local report_link=""
@@ -2614,6 +2223,8 @@ case "$outputfile" in
 esac
 fi
 }
+# Sourcing loads functions only; used by offline regression tests.
+[[ "${BASH_SOURCE[0]}" != "$0" ]] && return 0
 generate_random_user_agent
 adapt_locale
 check_connectivity
@@ -2630,6 +2241,6 @@ echo -ne "\r$Font_B$Font_Red${swarn[$ERRORcode]}$Font_Suffix\n"
 exit $ERRORcode
 fi
 clear
-show_ad
+ADLines=0
 [[ $IPV4work -ne 0 && $IPV4check -ne 0 ]]&&check_IP "$IPV4" 4
-[[ $IPV6work -ne 0 && $IPV6check -ne 0 ]]&&check_IP "$IPV6" 6
+if [[ $IPV6work -ne 0 && $IPV6check -ne 0 ]]; then check_IP "$IPV6" 6; fi
