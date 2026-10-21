@@ -1,5 +1,5 @@
 #!/bin/bash
-script_version="v2026-09-16-utenasama.2"
+script_version="v2026-09-16-utenasama.3"
 check_bash(){
 current_bash_version=$(bash --version|head -n 1|awk -F ' ' '{for (i=1; i<=NF; i++) if ($i ~ /^[0-9]+\.[0-9]+\.[0-9]+/) {print $i; exit}}'|cut -d . -f 1)
 if [ "$current_bash_version" = "0" ]||[ "$current_bash_version" = "1" ]||[ "$current_bash_version" = "2" ]||[ "$current_bash_version" = "3" ];then
@@ -48,6 +48,8 @@ declare -A ipapi
 declare -A abuseipdb
 declare -A ip2location
 declare -A ipdata
+declare -A ipqs
+declare -A dbip
 declare -A tiktok
 declare -A disney
 declare -A netflix
@@ -1127,6 +1129,68 @@ elif [[ ${ip2location[score]} -ge 66 ]];then
 ip2location[risk]="${sscore[high]}"
 fi
 }
+db_dbip(){
+local temp_info="$Font_Cyan$Font_B${sinfo[database]}${Font_I}DB-IP $Font_Suffix"
+((ibar_step+=3))
+show_progress_bar "$temp_info" $((40-6-${sinfo[ldatabase]}))&
+bar_pid="$!"&&disown "$bar_pid"
+trap "kill_progress_bar" RETURN
+dbip=()
+local tmpcurlarg="$CurlARG -$1"
+local RESPONSE
+RESPONSE=$(curl $tmpcurlarg -fsL -m 10 -H 'accept: */*' -H 'accept-language: en-US,en;q=0.9' -H 'content-type: text/html;charset=UTF-8' -H 'dnt: 1' -H 'user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36' "https://db-ip.com/api/core/") || return 0
+local tmpurl=$(echo "$RESPONSE"|sed -n 's/.*data-api-key="\([^"]*\)".*/\1/p'|head -n 1)
+[[ -n $tmpurl ]] || return 0
+RESPONSE=$(curl $tmpcurlarg -fsL -m 10 -H 'accept: */*' -H 'accept-language: en-US,en;q=0.9' -H 'content-type: text/plain;charset=UTF-8' -H 'dnt: 1' -H 'origin: https://db-ip.com' -H 'priority: u=1, i' -H 'referer: https://db-ip.com/' -H 'sec-ch-ua: "Not=A?Brand";v="99", "Google Chrome";v="151", "Chromium";v="151"' -H 'sec-ch-ua-mobile: ?0' -H 'sec-ch-ua-platform: "Windows"' -H 'sec-fetch-dest: empty' -H 'sec-fetch-mode: cors' -H 'sec-fetch-site: same-site' -H 'user-agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36' --data-raw '[["11.49","EUR"],["139.90","EUR"],["699.90","EUR"]]' "https://api.db-ip.com/v2/$tmpurl/self?convertCurrencies") || return 0
+echo "$RESPONSE"|jq -e 'type == "object" and .success != false and .error == null' >/dev/null 2>&1 || return 0
+dbip[robot]=$(echo "$RESPONSE"|jq -r '.isCrawler | if type == "boolean" then . else null end')
+dbip[proxy]=$(echo "$RESPONSE"|jq -r '.isProxy | if type == "boolean" then . else null end')
+dbip[risktext]=$(echo "$RESPONSE"|jq -r '.threatLevel')
+dbip[countrycode]=$(echo "$RESPONSE"|jq -r '.countryCode')
+shopt -s nocasematch
+case ${dbip[risktext]} in
+"low")dbip[risk]="${sscore[low]}"
+dbip[score]=0
+;;
+"medium")dbip[risk]="${sscore[medium]}"
+dbip[score]=50
+;;
+"high")dbip[risk]="${sscore[high]}"
+dbip[score]=100
+esac
+shopt -u nocasematch
+}
+
+db_ipqs(){
+local temp_info="$Font_Cyan$Font_B${sinfo[database]}${Font_I}IPQS $Font_Suffix"
+((ibar_step+=3))
+show_progress_bar "$temp_info" $((40-5-${sinfo[ldatabase]}))&
+bar_pid="$!"&&disown "$bar_pid"
+trap "kill_progress_bar" RETURN
+ipqs=()
+local RESPONSE
+RESPONSE=$(curl $CurlARG -fsL -$1 -m 10 "https://ipinfo.check.place/$IP?db=ipqualityscore") || return 0
+echo "$RESPONSE"|jq -e 'type == "object" and .success != false and .error == null' >/dev/null 2>&1 || return 0
+ipqs[score]=$(echo "$RESPONSE"|jq -r '.fraud_score | if type == "number" and . >= 0 and . <= 100 then . else null end')
+if [[ ${ipqs[score]} =~ ^[0-9]+$ ]];then
+if [[ ${ipqs[score]} -lt 75 ]];then
+ipqs[risk]="${sscore[low]}"
+elif [[ ${ipqs[score]} -lt 85 ]];then
+ipqs[risk]="${sscore[suspicious]}"
+elif [[ ${ipqs[score]} -lt 90 ]];then
+ipqs[risk]="${sscore[risky]}"
+elif [[ ${ipqs[score]} -ge 90 ]];then
+ipqs[risk]="${sscore[highrisk]}"
+fi
+fi
+ipqs[countrycode]=$(echo "$RESPONSE"|jq -r '.country_code')
+ipqs[proxy]=$(echo "$RESPONSE"|jq -r '.proxy | if type == "boolean" then . else null end')
+ipqs[tor]=$(echo "$RESPONSE"|jq -r '.tor | if type == "boolean" then . else null end')
+ipqs[vpn]=$(echo "$RESPONSE"|jq -r '.vpn | if type == "boolean" then . else null end')
+ipqs[abuser]=$(echo "$RESPONSE"|jq -r '.recent_abuse | if type == "boolean" then . else null end')
+ipqs[robot]=$(echo "$RESPONSE"|jq -r '.bot_status | if type == "boolean" then . else null end')
+}
+
 db_ipdata(){
 local temp_info="$Font_Cyan$Font_B${sinfo[database]}${Font_I}ipdata $Font_Suffix"
 ((ibar_step+=3))
@@ -1808,12 +1872,13 @@ sscore[text4]="${tmp1:49-p6}"
 show_score(){
 echo -e "${sscore[title]}"
 printf 'IP2Location: %s / 99\nScamalytics: %s / 100\nipapi: %s\nAbuseIPDB: %s / 100\n' "${ip2location[score]:-—}" "${scamalytics[score]:-—}" "${ipapi[score]:-—}" "${abuseipdb[score]:-—}"
+printf 'IPQS: %s / 100\nDB-IP: %s / 100 (low=0, medium=50, high=100)\n' "${ipqs[score]:-—}" "${dbip[score]:-—}"
 }
 show_factor(){
 echo -ne "\r${sfactor[title]}\n"
 printf '%-16s %-8s %-8s %-8s %-8s %-8s %-8s\n' 'Database' 'Proxy' 'Tor' 'VPN' 'Server' 'Abuser' 'Robot'
 local provider field value line
-for provider in ip2location scamalytics ipapi abuseipdb ipinfo ipregistry ipdata; do
+for provider in ip2location scamalytics ipapi abuseipdb ipinfo ipregistry ipdata ipqs dbip; do
 local -n values="$provider"
 line="$provider"
 for field in proxy tor vpn server abuser robot; do
@@ -2100,6 +2165,22 @@ score_updates+=".Score |= . + { IP2LOCATION: \"${ip2location[score]:-null}\" } |
 score_updates+=".Score |= . + { SCAMALYTICS: \"${scamalytics[score]:-null}\" } | "
 score_updates+=".Score |= . + { ipapi: \"${ipapi[score]:-null}\" } | "
 score_updates+=".Score |= . + { AbuseIPDB: \"${abuseipdb[score]:-null}\" } | "
+score_updates+=".Score |= . + { IPQS: \"${ipqs[score]:-null}\" } | "
+score_updates+=".Score |= . + { DBIP: \"${dbip[score]:-null}\" } | "
+factor_updates+=$(factor_bool "${ipqs[countrycode]}" "IPQS" "CountryCode")
+factor_updates+=$(factor_bool "${dbip[countrycode]}" "DBIP" "CountryCode")
+factor_updates+=$(factor_bool "${ipqs[proxy]}" "IPQS" "Proxy")
+factor_updates+=$(factor_bool "${dbip[proxy]}" "DBIP" "Proxy")
+factor_updates+=$(factor_bool "${ipqs[tor]}" "IPQS" "Tor")
+factor_updates+=$(factor_bool "${dbip[tor]}" "DBIP" "Tor")
+factor_updates+=$(factor_bool "${ipqs[vpn]}" "IPQS" "VPN")
+factor_updates+=$(factor_bool "${dbip[vpn]}" "DBIP" "VPN")
+factor_updates+=$(factor_bool "${ipqs[server]}" "IPQS" "Server")
+factor_updates+=$(factor_bool "${dbip[server]}" "DBIP" "Server")
+factor_updates+=$(factor_bool "${ipqs[abuser]}" "IPQS" "Abuser")
+factor_updates+=$(factor_bool "${dbip[abuser]}" "DBIP" "Abuser")
+factor_updates+=$(factor_bool "${ipqs[robot]}" "IPQS" "Robot")
+factor_updates+=$(factor_bool "${dbip[robot]}" "DBIP" "Robot")
 factor_updates+=$(factor_bool "${ip2location[countrycode]}" "IP2LOCATION" "CountryCode")
 factor_updates+=$(factor_bool "${ipapi[countrycode]}" "ipapi" "CountryCode")
 factor_updates+=$(factor_bool "${ipregistry[countrycode]}" "ipregistry" "CountryCode")
@@ -2186,6 +2267,8 @@ db_ipregistry $2
 db_ipapi $2
 [[ $mode_lite -eq 0 ]]&&db_abuseipdb $2||abuseipdb=()
 [[ $mode_lite -eq 0 ]]&&db_ip2location $2||ip2location=()
+db_dbip $2
+[[ $mode_lite -eq 0 ]]&&db_ipqs $2||ipqs=()
 [[ $mode_lite -eq 0 ]]&&db_ipdata $2||ipdata=()
 MediaUnlockTest_TikTok $2
 MediaUnlockTest_DisneyPlus $2

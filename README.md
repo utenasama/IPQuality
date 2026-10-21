@@ -1,4 +1,4 @@
-> **Utenasama fork:** basic metadata, type attributes, four risk scores, risk flags and media/AI checks; IPQS, DB-IP, IPWHOIS, SMTP and DNSBL are disabled. See [UTENASAMA.md](UTENASAMA.md) for changes and local usage. The historical upstream usage below points to upstream, not this fork.
+> **Utenasama fork:** basic metadata, type attributes, six risk indicators, risk flags and media/AI checks; IPQS and DB-IP queries are restored; IPWHOIS placeholders, SMTP and DNSBL remain removed. See [UTENASAMA.md](UTENASAMA.md) for changes and local usage. The historical upstream usage below points to upstream, not this fork.
 
 <p align="center">
 <img src="https://hits.xykt.de/ip.svg?action=view&count_bg=%2379C83D&title_bg=%23555555&title=Runs&edge_flat=false"/> 
